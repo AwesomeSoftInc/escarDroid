@@ -10,8 +10,6 @@ class MusicRemoveCommand extends MusicCommand {
     if (!this.guild.voiceStates.get(this.client.user.id)?.channelID) return this.getString("sound.notInVoice");
     if (!this.connection) return this.getString("sound.noConnection");
     const owners = process.env.OWNER?.split(",") ?? [];
-    if (this.connection.host !== this.author.id && !owners.includes(this.connection.host))
-      return this.getString("commands.responses.remove.notHost");
     const pos = this.getOptionInteger("position", true) ?? Number.parseInt(this.args[0]);
     if (Number.isNaN(pos) || pos > this.queue.length || pos < 1)
       return this.getString("commands.responses.remove.invalidPosition");
