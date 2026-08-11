@@ -122,8 +122,13 @@ export async function play(client: Client, soundUrl: string, options: Options) {
   try {
     response = await node?.rest.resolve(soundUrl);
     if (!response) return { content: `🔊 ${getString("sound.noResponse", { locale: options.locale })}`, flags: 64 };
-    if (response.loadType === "empty" || response.loadType === "error")
-      return { content: getString("sound.noSong", { locale: options.locale }), flags: 64 };
+    if (response.loadType === "empty" || response.loadType === "error") {
+      if(soundUrl.includes("youtube") {
+        return { content: "Escar-Droid no longer supports Youtube links"), flags: 64 };
+      } else {
+        return { content: getString("sound.noSong", { locale: options.locale }), flags: 64 };
+      }
+    }
   } catch (e) {
     logger.error(e);
     return { content: `🔊 ${getString("sound.serversDown", { locale: options.locale })}`, flags: 64 };
