@@ -8,7 +8,7 @@ import logger from "./logger.ts";
 import MediaConnection from "./mediaConnection.ts";
 import run from "./mediaRunner.ts";
 import { random } from "./misc.ts";
-import type { MediaParams, MediaTypes } from "./types.ts";
+import { mediaTypes, type MediaParams, type MediaTypes } from "./types.ts";
 
 let mediaLib: import("./mediaLib.ts").MediaLib | undefined;
 
@@ -20,7 +20,7 @@ interface ServerConfig {
 }
 
 export const formats = {
-  image: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
+  image: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", "image/heif"],
 };
 export const connections = new Map<string, MediaConnection>();
 export let servers: ServerConfig[] = [];
@@ -134,9 +134,11 @@ export async function request(
     clearTimeout(timeout);
   }
 
-  if (
-    ![...(typeMedia.length === 0 ? formats.image : typeMedia.flatMap((v) => formats[v]))].includes(stream.fileType.mime)
-  ) {
+  if (typeMedia.length === 0) {
+    typeMedia = mediaTypes.slice(0); // clone array
+  }
+
+  if (!typeMedia.flatMap((v) => formats[v]).includes(stream.fileType.mime)) {
     await stream.cancel();
     return;
   }
@@ -195,15 +197,7 @@ export function disconnect() {
 async function repopulate() {
   const data = await fs.promises.readFile(new URL("../../config/servers.json", import.meta.url), { encoding: "utf8" });
   const parsed = JSON.parse(data);
-  if (parsed.image) {
-    logger.warn('!!! THE "image" FIELD IN config/servers.json IS DEPRECATED !!!');
-    logger.warn(
-      'The "image" field has been renamed to "media". Please rename it in your config; esmBot will no longer read this field in a future version.',
-    );
-    servers = parsed.image;
-  } else {
-    servers = parsed.media;
-  }
+  servers = parsed.media;
 }
 
 export async function reloadMediaConnections() {

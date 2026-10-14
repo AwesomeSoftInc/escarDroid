@@ -64,7 +64,8 @@ export function connect(client: Client) {
   if (nodes.length === 0) return true;
   manager = new Shoukaku(new Connectors.OceanicJS(client), nodes, { moveOnDisconnect: true, resume: true });
   manager.on("error", (node, error) => {
-    logger.error(`An error occurred on Lavalink node ${node}: ${error}`);
+    logger.error(`An error occurred on Lavalink node ${node}:`);
+    logger.error(error);
   });
   manager.on("debug", (node, info) => {
     logger.debug(`Debug event from Lavalink node ${node}: ${info}`);
@@ -81,7 +82,7 @@ export async function reload(client: Client) {
   if (!manager && connect(client)) return;
   const activeNodes = manager.nodes;
   const names = nodes.map((a) => a.name);
-  for (const name in activeNodes) {
+  for (const name of activeNodes.keys()) {
     if (!names.includes(name)) {
       manager.removeNode(name);
     }
@@ -307,25 +308,18 @@ export async function nextSong(
   });
   connection.on("end", async (data) => {
     if (data.reason === "replaced") return;
-    let queue = queues.get(voiceChannel.guildID) ?? [];
     const player = players.get(voiceChannel.guildID);
     let newQueue: QueueEntry[] = [];
     if (manager.connections.has(voiceChannel.guildID)) {
-      if (player?.shuffle) {
-        if (player.loop) {
-          const shifted = queue.shift();
-          if (shifted) queue.push(shifted);
-        } else {
-          queue = queue.slice(1);
-        }
-        queue.unshift(queue.splice(Math.floor(Math.random() * queue.length), 1)[0]);
-        newQueue = queue;
-      } else if (player?.loop) {
-        const shifted = queue.shift();
-        if (shifted) queue.push(shifted);
-        newQueue = queue;
+      newQueue = queues.get(voiceChannel.guildID) ?? [];
+      if (player?.loop) {
+        const shifted = newQueue.shift();
+        if (shifted) newQueue.push(shifted);
       } else {
-        newQueue = queue ? queue.slice(1) : [];
+        newQueue = newQueue.slice(1);
+      }
+      if (player?.shuffle && newQueue.length > 0) {
+        newQueue.unshift(newQueue.splice(Math.floor(Math.random() * newQueue.length), 1)[0]);
       }
       queues.set(voiceChannel.guildID, newQueue);
     }
@@ -355,15 +349,7 @@ export async function nextSong(
             channel: voiceChannel.name,
           },
         })}`;
-        if (options.interaction) {
-          if (Date.now() - options.interaction.createdAt.getTime() >= 900000) {
-            await client.rest.channels.createMessage(options.channel.id, { content });
-          } else {
-            await options.interaction.createFollowup({ content });
-          }
-        } else {
-          await client.rest.channels.createMessage(options.channel.id, { content });
-        }
+        await sendUpdate(client, options, content);
       } catch {
         // no-op
       }
@@ -379,6 +365,14 @@ export async function nextSong(
       }
     }
   });
+}
+
+async function sendUpdate(client: Client, options: Options, content: string) {
+  if (options.interaction && Date.now() - options.interaction.createdAt.getTime() < 900000) {
+    await options.interaction.createFollowup({ content });
+  } else {
+    await client.rest.channels.createMessage(options.channel.id, { content });
+  }
 }
 
 export async function errHandle(
@@ -408,15 +402,7 @@ export async function errHandle(
   connection.removeAllListeners("end");
   try {
     const content = `🔊 ${getString("sound.error", { locale: options.locale })}\n\`\`\`${exception.exception.cause}: ${exception.exception.message}\`\`\``;
-    if (options.interaction) {
-      if (Date.now() - options.interaction.createdAt.getTime() >= 900000) {
-        await client.rest.channels.createMessage(options.channel.id, { content });
-      } else {
-        await options.interaction.createFollowup({ content });
-      }
-    } else {
-      if (playingMessage?.channel) await client.rest.channels.createMessage(playingMessage.channel.id, { content });
-    }
+    await sendUpdate(client, options, content);
   } catch {
     // no-op
   }

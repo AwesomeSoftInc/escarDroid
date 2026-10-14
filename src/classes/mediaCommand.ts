@@ -54,6 +54,7 @@ class MediaCommand extends Command {
 
     const ephemeral = this.getOptionBoolean("ephemeral");
     const spoiler = this.getOptionBoolean("spoiler");
+    const sizeLimit = this.interaction?.attachmentSizeLimit ?? maxFileSize(this.guild);
     let mediaParams: MediaParams;
 
     if (staticProps.requiresImage) {
@@ -62,29 +63,34 @@ class MediaCommand extends Command {
         if (!this.getOptionAttachment("image") && !this.getOptionString("link")) {
           selection = selectedImages.get(this.author.id);
         }
-        const media = selection
-          ? [selection]
-          : await mediaDetect(this.client, this.permissions, this.message, this.interaction).catch((e) => {
-              if (e.name === "AbortError") {
-                runningCommands.delete(this.author.id);
-                return this.getString("image.timeout");
-              }
-              throw e;
-            });
+        const media =
+          selection && !selection.result
+            ? [selection]
+            : await mediaDetect(this.client, this.permissions, this.message, this.interaction).catch((e) => {
+                if (e.name === "AbortError") {
+                  runningCommands.delete(this.author.id);
+                  return this.getString("image.timeout");
+                }
+                if (selection) return [];
+                throw e;
+              });
+        if (typeof media === "string") return media;
+        if (selection && selection.result) {
+          media.push(selection);
+        }
         if (media.length === 0) {
           runningCommands.delete(this.author.id);
           return `${this.getString(`commands.noImage.${this.cmdName}`, { returnNull: true }) || this.getString("image.noImage", { returnNull: true }) || staticProps.noImage} ${this.getString("image.tip", { params: { name: this.client.user.globalName ?? this.client.user.username } })}`;
         }
-        if (typeof media === "string") return media;
         selectedImages.delete(this.author.id);
         mediaParams = {
           cmd: staticProps.command,
           params: {},
           id: (this.interaction ?? this.message)?.id ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(),
           inputs: media,
-          ephemeral,
           spoiler,
           token: this.interaction?.token,
+          filesize: sizeLimit,
         };
       } catch (e) {
         runningCommands.delete(this.author.id);
@@ -96,9 +102,9 @@ class MediaCommand extends Command {
         params: {},
         inputs: [],
         id: (this.interaction ?? this.message)?.id ?? Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(),
-        ephemeral,
         spoiler,
         token: this.interaction?.token,
+        filesize: sizeLimit,
       };
     }
 
@@ -144,12 +150,15 @@ class MediaCommand extends Command {
           selectedImages.set(this.interaction.user.id, {
             path: path.toString(),
             spoiler: !!(attachment.flags & AttachmentFlags.IS_SPOILER),
+            result: true,
           });
         }
         return;
       }
       if (type === "large") return this.getString("image.large");
       if (type === "frames") return this.getString("image.frames");
+      if (type === "small") return this.getString("image.small");
+      if (type === "avis") return this.getString("image.animatedAVIF");
       if (type === "unknown") return this.getString("image.unknown");
       if (type === "noresult") return this.getString("image.noResult");
       if (type === "ratelimit") return this.getString("image.ratelimit");
@@ -173,7 +182,7 @@ class MediaCommand extends Command {
         contents: buffer,
         name: `${spoiler || result.spoiler ? "SPOILER_" : ""}${staticProps.command}.${type}`,
       };
-      if (buffer.length > (this.interaction?.attachmentSizeLimit ?? maxFileSize(this.guild))) {
+      if (buffer.length > sizeLimit) {
         if (process.env.TEMPDIR && process.env.TEMPDIR !== "" && this.permissions.has("EMBED_LINKS")) {
           if (this.interaction) {
             await upload(this.client, { ...file, flags }, this.interaction);
@@ -194,12 +203,14 @@ class MediaCommand extends Command {
       }
     } catch (e) {
       const err = e as Error;
-      if (err.toString().includes("media_not_working")) return this.getString("image.notWorking");
-      if (err.toString().includes("Request ended prematurely due to a closed connection"))
+      const errString = err.toString();
+      if (errString.includes("media_not_working")) return this.getString("image.notWorking");
+      if (errString.includes("Request ended prematurely due to a closed connection"))
         return this.getString("image.tryAgain");
-      if (err.toString().includes("media_job_killed") || err.toString().includes("Timeout"))
+      if (errString.includes("image_pixel_limit")) return this.getString("image.pixelLimit");
+      if (errString.includes("media_job_killed") || errString.includes("Timeout"))
         return this.getString("image.tooLong");
-      if (err.toString().includes("No available servers")) return this.getString("image.noServers");
+      if (errString.includes("No available servers")) return this.getString("image.noServers");
       throw err;
     } finally {
       if (status) await status.delete().catch((e) => logger.warn(`Failed to delete status message: ${e}`));
@@ -216,6 +227,7 @@ class MediaCommand extends Command {
       selectedImages.set(this.interaction.user.id, {
         path: path.toString(),
         spoiler: !!(attachment.flags & AttachmentFlags.IS_SPOILER),
+        result: true,
       });
     }
   }
@@ -247,6 +259,7 @@ class MediaCommand extends Command {
           name: "image",
           nameLocalizations: getAllLocalizations("image.flagNames.image"),
           type: Constants.ApplicationCommandOptionTypes.ATTACHMENT,
+          fileTypes: this.supportedTypes,
           description: "An image/GIF attachment",
           descriptionLocalizations: getAllLocalizations("image.flags.image"),
         },

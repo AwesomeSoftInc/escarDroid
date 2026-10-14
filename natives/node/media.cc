@@ -8,9 +8,6 @@
 #include "../shared.h"
 #include "worker.h"
 
-#if defined(WIN32) && defined(MAGICK_ENABLED)
-#include <Magick++.h>
-#endif
 #include <vips/vips8>
 
 #ifdef WITH_BACKWARD
@@ -137,14 +134,10 @@ Napi::Value MediaInit(const Napi::CallbackInfo &info) {
   mallopt(M_MMAP_THRESHOLD, 131072);
 #endif
 
-#if defined(WIN32) && defined(MAGICK_ENABLED)
-  Magick::InitializeMagick("");
-#endif
-
   if (VIPS_INIT("")) vips_error_exit(NULL);
   vips_cache_set_max(0);
 
-#if VIPS_MAJOR_VERSION >= 8 && VIPS_MINOR_VERSION >= 13
+#if VIPS_MAJOR_VERSION > 8 || (VIPS_MAJOR_VERSION == 8 && VIPS_MINOR_VERSION >= 13)
   vips_block_untrusted_set(true);
   vips_operation_block_set("VipsForeignLoad", true);
   vips_operation_block_set("VipsForeignLoadJpeg", false);

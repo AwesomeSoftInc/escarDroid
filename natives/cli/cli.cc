@@ -179,9 +179,8 @@ int main(int argc, char *argv[]) {
         continue;
       }
 
-      // only check for strings for now, the parser *should* handle bools properly?
-      std::string val = GetArgument<std::string>(args.flags, arg.first);
       if (arg.second.type == typeid(int)) {
+        std::string val = GetArgument<std::string>(args.flags, arg.first);
         try {
           args.flags[arg.first] = std::stoi(val);
         } catch (std::invalid_argument &e) {
@@ -189,6 +188,7 @@ int main(int argc, char *argv[]) {
           return 1;
         }
       } else if (arg.second.type == typeid(float)) {
+        std::string val = GetArgument<std::string>(args.flags, arg.first);
         try {
           args.flags[arg.first] = std::stof(val);
         } catch (std::invalid_argument &e) {
@@ -234,7 +234,7 @@ int main(int argc, char *argv[]) {
     esmb_media_process(function.c_str(), args.flags, inType.c_str(), outType.c_str(), data.data(), data.size());
 
   std::ofstream output(out, std::ios::binary);
-  output.write(reinterpret_cast<const char *>(result->buf), result->length);
+  output.write(static_cast<const char *>(result->buf), result->length);
 
   esmb_media_free_result(result);
   return 0;

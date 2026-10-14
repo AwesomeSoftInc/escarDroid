@@ -65,7 +65,8 @@ export type Param =
     }
   | string;
 
-export type MediaTypes = "image";
+export const mediaTypes = ["image"] as const;
+export type MediaTypes = (typeof mediaTypes)[number];
 
 export interface MediaParams {
   cmd: string;
@@ -74,14 +75,15 @@ export interface MediaParams {
   };
   id: string;
   inputs: MediaMeta[];
-  ephemeral?: boolean;
   spoiler?: boolean;
   token?: string;
+  filesize?: number;
 }
 
 export interface MediaMeta {
   path: string;
   spoiler: boolean;
+  result?: boolean;
 }
 
 export interface JobOutput {

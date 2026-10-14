@@ -25,7 +25,7 @@ interface RequestState {
 
 type WaitResponse = { sent: true; data: Buffer } | { sent: false };
 
-const etcTypes = ["noanim", "nocmd", "text", "empty", "frames", "ratelimit", "nomedia", "large"];
+const etcTypes = ["noanim", "nocmd", "text", "empty", "frames", "ratelimit", "nomedia", "large", "avis", "small"];
 
 class MediaConnection {
   requests: Map<number, RequestState>;
@@ -215,8 +215,8 @@ class MediaConnection {
 
   do<T>(op: number, id: bigint, data: Buffer): Promise<T> {
     const buf = Buffer.alloc(1 + 2);
-    let tag = this.tag++;
-    if (tag > 65535) tag = this.tag = 0;
+    if (this.tag > 65535) this.tag = 0;
+    const tag = this.tag++;
     buf.writeUint8(op);
     buf.writeUint16LE(tag, 1);
     this.conn.send(Buffer.concat([buf, data]));

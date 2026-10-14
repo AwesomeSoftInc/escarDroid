@@ -47,12 +47,12 @@ CmdOutput esmb::Image::Freeze(const string &type, string &outType, const char *b
     bool none = true;
 
     if (loop) {
-      char *fileData = reinterpret_cast<char *>(malloc(bufferLength + 19));
+      char *fileData = static_cast<char *>(malloc(bufferLength + 19));
       memcpy(fileData, bufferdata, bufferLength);
-      lastPos = reinterpret_cast<char *>(memchr(fileData, '\x2C', bufferLength));
+      lastPos = static_cast<char *>(memchr(fileData, '\x2C', bufferLength));
       while (lastPos != NULL) {
-        if (memcmp(lastPos, descriptor, 5) != 0) {
-          lastPos = reinterpret_cast<char *>(memchr(lastPos + 1, '\x2C', (bufferLength - (lastPos - fileData)) - 1));
+        if (static_cast<size_t>(bufferLength - (lastPos - fileData)) < 5 || memcmp(lastPos, descriptor, 5) != 0) {
+          lastPos = static_cast<char *>(memchr(lastPos + 1, '\x2C', (bufferLength - (lastPos - fileData)) - 1));
           continue;
         }
 
@@ -71,12 +71,12 @@ CmdOutput esmb::Image::Freeze(const string &type, string &outType, const char *b
       char *buf = vipsTrim(bufferdata, bufferLength, dataSize, frame, type, outType, shouldKill);
       output.buf = buf;
     } else {
-      char *fileData = reinterpret_cast<char *>(malloc(bufferLength));
+      char *fileData = static_cast<char *>(malloc(bufferLength));
       memcpy(fileData, bufferdata, bufferLength);
-      lastPos = reinterpret_cast<char *>(memchr(fileData, '\x21', bufferLength));
+      lastPos = static_cast<char *>(memchr(fileData, '\x21', bufferLength));
       while (lastPos != NULL) {
-        if (memcmp(lastPos, match, 16) != 0) {
-          lastPos = reinterpret_cast<char *>(memchr(lastPos + 1, '\x21', (bufferLength - (lastPos - fileData)) - 1));
+        if (static_cast<size_t>(bufferLength - (lastPos - fileData)) < 19 || memcmp(lastPos, match, 16) != 0) {
+          lastPos = static_cast<char *>(memchr(lastPos + 1, '\x21', (bufferLength - (lastPos - fileData)) - 1));
           continue;
         }
         memmove(lastPos, lastPos + 19, (bufferLength - (lastPos - fileData)) - 19);
@@ -95,13 +95,15 @@ CmdOutput esmb::Image::Freeze(const string &type, string &outType, const char *b
       output.buf = buf;
       output.length = dataSize;
     } else {
-      char *fileData = reinterpret_cast<char *>(malloc(bufferLength));
+      char *fileData = static_cast<char *>(malloc(bufferLength));
       memcpy(fileData, bufferdata, bufferLength);
 
       size_t position = 12;
 
       int dataStart = 0;
-      while ((dataStart = RIFF::findChunk(fileData, bufferLength, "ANIM", position, NULL)) != -1) {
+      uint32_t chunkSize = 0;
+      while ((dataStart = RIFF::findChunk(fileData, bufferLength, "ANIM", position, &chunkSize)) != -1) {
+        if (chunkSize < 6) continue;
         fileData[dataStart + 4] = loop ? 0 : 1;
         fileData[dataStart + 5] = 0;
       }
@@ -110,7 +112,7 @@ CmdOutput esmb::Image::Freeze(const string &type, string &outType, const char *b
       output.length = bufferLength;
     }
   } else {
-    char *data = reinterpret_cast<char *>(malloc(bufferLength));
+    char *data = static_cast<char *>(malloc(bufferLength));
     memcpy(data, bufferdata, bufferLength);
     output.buf = data;
     output.length = bufferLength;
