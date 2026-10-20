@@ -1,6 +1,5 @@
 #include "worker.h"
 #include "../image/common.h"
-#include <exception>
 
 using namespace std;
 
@@ -43,6 +42,10 @@ void MediaAsyncWorker::Execute() {
     SetError(e.what());
   }
 
+  EndCleanup();
+}
+
+void MediaAsyncWorker::EndCleanup() {
   vips_error_clear();
   vips_thread_shutdown();
 }

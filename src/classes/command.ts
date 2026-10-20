@@ -21,7 +21,7 @@ import {
 } from "oceanic.js";
 import { getString } from "#utils/i18n.js";
 import { cleanInteraction, cleanMessage } from "#utils/misc.js";
-import type { CommandType, ExtendedConstructedCommandOptions } from "#utils/types.js";
+import type { CommandFlag, CommandType } from "#utils/types.js";
 import type { DatabasePlugin } from "../database.ts";
 
 type CommandOptionsClassic = {
@@ -140,6 +140,30 @@ class Command {
    * The function to run after sending the output.
    */
   async finalize(_res?: Message) {}
+
+  /**
+   * Replies to the message or interaction that invoked the command.
+   */
+  async reply(
+    content: InteractionContent | CreateMessageOptions,
+    options: { ephemeral?: boolean; mention?: boolean } = {},
+  ): Promise<Message> {
+    if (this.interaction) {
+      const res = await this.interaction.createFollowup({
+        flags: options.ephemeral ? 64 : 0,
+        ...(content as InteractionContent),
+      });
+      return res.message;
+    }
+    if (this.message && this.reference) {
+      return this.client.rest.channels.createMessage(this.message.channelID, {
+        ...(content as CreateMessageOptions),
+        ...this.reference,
+        allowedMentions: { repliedUser: options.mention ?? false },
+      });
+    }
+    throw Error("Unknown command type");
+  }
 
   async acknowledge() {
     if (this.type === "classic" && this.message) {
@@ -290,7 +314,7 @@ class Command {
 
   static description = "No description found";
   static aliases: string[] = [];
-  static flags: ExtendedConstructedCommandOptions[] = [];
+  static flags: CommandFlag[] = [];
   static ephemeral = false;
   static dbRequired = false;
   static slashAllowed = true;

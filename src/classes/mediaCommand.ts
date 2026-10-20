@@ -10,7 +10,7 @@ import {
   type User,
 } from "oceanic.js";
 import messages from "#config/messages.json" with { type: "json" };
-import { runningCommands, selectedImages } from "#utils/collections.js";
+import { pendingCommands, runningCommands, selectedImages } from "#utils/collections.js";
 import { convFlagType } from "#utils/handler.js";
 import { getAllLocalizations } from "#utils/i18n.js";
 import logger from "#utils/logger.js";
@@ -18,7 +18,7 @@ import { runMediaJob } from "#utils/media.js";
 import mediaDetect from "#utils/mediadetect.js";
 import { clean, isEmpty, maxFileSize, random } from "#utils/misc.js";
 import { upload } from "#utils/tempimages.js";
-import type { ExtendedConstructedCommandOptions, MediaParams, MediaMeta, MediaTypes } from "#utils/types.js";
+import type { CommandFlag, MediaParams, MediaMeta, MediaTypes } from "#utils/types.js";
 import Command from "./command.ts";
 
 class MediaCommand extends Command {
@@ -49,18 +49,20 @@ class MediaCommand extends Command {
     }
     // before awaiting the command result, add this command to the set of running commands
     runningCommands.set(this.author.id, timestamp);
+    pendingCommands.delete(this.author.id);
 
     const staticProps = this.constructor as typeof MediaCommand;
 
     const ephemeral = this.getOptionBoolean("ephemeral");
     const spoiler = this.getOptionBoolean("spoiler");
     const sizeLimit = this.interaction?.attachmentSizeLimit ?? maxFileSize(this.guild);
+    const canUseSelection = !this.getOptionAttachment("image") && !this.getOptionString("link");
     let mediaParams: MediaParams;
 
-    if (staticProps.requiresImage) {
+    if (staticProps.requiresMedia) {
       try {
         let selection: MediaMeta | undefined;
-        if (!this.getOptionAttachment("image") && !this.getOptionString("link")) {
+        if (canUseSelection) {
           selection = selectedImages.get(this.author.id);
         }
         const media =
@@ -80,6 +82,9 @@ class MediaCommand extends Command {
         }
         if (media.length === 0) {
           runningCommands.delete(this.author.id);
+          if (canUseSelection) {
+            pendingCommands.set(this.author.id, new staticProps(this.client, this.database, this.origOptions));
+          }
           return `${this.getString(`commands.noImage.${this.cmdName}`, { returnNull: true }) || this.getString("image.noImage", { returnNull: true }) || staticProps.noImage} ${this.getString("image.tip", { params: { name: this.client.user.globalName ?? this.client.user.username } })}`;
         }
         selectedImages.delete(this.author.id);
@@ -164,8 +169,12 @@ class MediaCommand extends Command {
       if (type === "ratelimit") return this.getString("image.ratelimit");
       if (type === "nocmd") return this.getString("image.nocmd");
       if (type === "noanim") return this.getString("image.noanim");
-      if (type === "nomedia")
+      if (type === "nomedia") {
+        if (canUseSelection) {
+          pendingCommands.set(this.author.id, new staticProps(this.client, this.database, this.origOptions));
+        }
         return `${this.getString(`commands.noImage.${this.cmdName}`, { returnNull: true }) || this.getString("image.noImage", { returnNull: true }) || staticProps.noImage} ${this.getString("image.tip", { params: { name: this.client.user.globalName ?? this.client.user.username } })}`;
+      }
       if (type === "empty") return staticProps.empty;
 
       this.success = true;
@@ -253,7 +262,7 @@ class MediaCommand extends Command {
 
   static init() {
     this.flags = [];
-    if (this.requiresImage) {
+    if (this.requiresMedia) {
       this.flags.push(
         {
           name: "image",
@@ -315,10 +324,10 @@ class MediaCommand extends Command {
 
   static supportedTypes: MediaTypes[] = ["image"];
 
-  static requiresImage = true;
+  static requiresMedia = true;
   static requiresParam = false;
   static requiredParam = "text";
-  static requiredParamType: ExtendedConstructedCommandOptions["type"] = "string";
+  static requiredParamType: CommandFlag["type"] = "string";
   static textOptional = false;
   static alwaysGIF = false;
   static noImage = "You need to provide an image/GIF!";
